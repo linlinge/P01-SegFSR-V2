@@ -1,4 +1,4 @@
-## Image Segmentation based 2D-3D Fusion for 3D Object Filtering, Segmentation and Recognition  (Editting)
+## Image Segmentation based 2D-3D Fusion for 3D Object Filtering, Segmentation and Recognition  (on Editting) (Based on Flood Fill)
 This is the source code of segmentation based 2d-3d fusion for 3D Object filtering, segmentation and recognition.  This code is compiled under ubuntu 18.04 with cmake.
 
 ## Depenencies
