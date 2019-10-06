@@ -1,5 +1,5 @@
 #include "SegFSR.h"
-#define IMG_WIDTH 15
+#define IMG_WIDTH 50
 void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 {
 	// Generate Picture

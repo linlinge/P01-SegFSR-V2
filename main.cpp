@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 	}
 	
 	SegFSR alg;
-	alg.Init(cloud,20);
+	alg.Init(cloud,500);
 	alg.Run();
 	
 	return 0;
