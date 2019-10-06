@@ -14,8 +14,6 @@ using namespace std;
 #define PointType pcl::PointXYZRGBA
 #endif
 
-
-
 class BoundingBox
 {
     public:

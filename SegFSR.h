@@ -14,11 +14,10 @@
 #include "PCLExtend.h"
 #include <cstdlib>
 #include <ctime>
-#include "graph.h"
-#include "omp.h"
 #include<random>
 #include<cmath>
 #include<chrono>
+#include "FloodFill.h"
 using namespace std;
 /*
 	Image Segmentation based 2D-3D Fusion for 3D Object Filtering, Segmentation and Recognition
@@ -39,7 +38,6 @@ class ZBuffer
 		int rows_,cols_;
 		vector<vector<ZElement>>  dat_; //
 		cv::Mat img_;		
-		void Init(pcl::PointCloud<PointType>::Ptr cloud, int axis, double max_dist);
 		void Init(pcl::PointCloud<PointType>::Ptr cloud,int axis);
 		void Clear(){
 			rows_=0;
@@ -62,15 +60,12 @@ class SegFSR
 		vector<ZBuffer> bufs_;  // n*1
 		
 		
-		void Init01(pcl::PointCloud<PointType>::Ptr cloud, float delta_arc);  // initial		
-		void Init02(pcl::PointCloud<PointType>::Ptr cloud, int n);  // initial		
-		void OrientationsGenerator01();
-		void OrientationsGenerator02();
+		void Init(pcl::PointCloud<PointType>::Ptr cloud, int n);  // initial		
+		void OrientationsGenerator();
 		void ProjectionGenerator();
 		void Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);
 		void Run();
 
-		
 		// inner function
 		void UprightEstimation();
 };

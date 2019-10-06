@@ -1,58 +1,5 @@
 #include "SegFSR.h"
-
-// Approach 01:
-// Based on mean dist
-void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis,double mean_dist)
-{
-	// Generate Picture
-	PointType min,max;
-    pcl::getMinMax3D(*cloud,min,max);
-	float border_width=(max.x-min.x)*0.01;
-	min.x=min.x-border_width;
-	max.x=max.x+border_width;
-	min.y=min.y-border_width;
-	max.y=max.y+border_width;
-	
-	// initial
-	cols_=floor((max.x-min.x)/mean_dist)+1;
-	rows_=floor((max.y-min.y)/mean_dist)+1;
-	
-	// Initialize ZBuffer
-	vector<ZElement> tmp;
-	tmp.resize(cols_);
-	for(int i=0;i<rows_;i++)
-		dat_.push_back(tmp);
-	
-	
-	img_.create(rows_,cols_, CV_8UC1);
-	for(int i=0;i<rows_;i++){
-		for(int j=0;j<cols_;j++){
-			img_.at<uchar>(i,j)=255;
-		}
-	}
-	
-	float delta_x=(max.x-min.x)/cols_;
-	float delta_y=(max.y-min.y)/rows_;	
-	
-	for(int k=0;k<cloud->points.size();k++){
-		
-		int j=floor((cloud->points[k].x-min.x)/delta_x);
-		int i=floor((cloud->points[k].y-min.y)/delta_y);
-		
-		if(dat_[i][j].depth_<cloud->points[k].z){
-			dat_[i][j].depth_=cloud->points[k].z;
-			img_.at<uchar>(i,j)=0;
-		}
-	}
-	
-	/* cv::imshow("3D Viewer",img_);
-	cv::imwrite("1.bmp",img_);
-	cv::waitKey(0); */
-}
-
-// Approach 02
-// Based on specified Resolution
-#define IMG_WIDTH 200
+#define IMG_WIDTH 400
 void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 {
 	// Generate Picture
@@ -102,15 +49,7 @@ void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 	}
 }
 
-
-void SegFSR::Init01(pcl::PointCloud<PointType>::Ptr cloud, float delta_arc)
-{
-	cloud_=cloud;
-	delta_arc_=delta_arc;
-	
-}
-
-void SegFSR::Init02(pcl::PointCloud<PointType>::Ptr cloud, int n)
+void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud, int n)
 {
 	cloud_=cloud;
 	n_=n;
@@ -136,31 +75,7 @@ void SegFSR::UprightEstimation()
 	v_left_=v_left_/v_left_.GetLength();
 }
 
-// Approach 01: Generator orientation based on UprightEstimation()
-void SegFSR::OrientationsGenerator01()
-{	
-	// upright estimation 
-	UprightEstimation();
-	
-	// Generate orientation
-	cv::Mat mat_initial_vector = (cv::Mat_<double>(3, 1) << v_forward_.x, v_forward_.y , v_forward_.z);   // initial vector
-	int n=floor(2*CV_PI/delta_arc_);
-	for(int i=0;i<=n;i++)
-	{
-		V3 v3_rotation_vector= v_upright_*delta_arc_*i;	
-		cv::Mat mat_rotation_vector = (cv::Mat_<double>(3, 1) << v3_rotation_vector.x, v3_rotation_vector.y, v3_rotation_vector.z); 		
-		cv::Mat rotation_matrix;                                            // rotaiton matrix
-		Rodrigues(mat_rotation_vector, rotation_matrix);
-		cv::Mat des_vector = rotation_matrix * mat_initial_vector;
-		
-		V3 tmp=V3(des_vector.ptr  <double>(0)[0],des_vector.ptr<double>(1)[0],des_vector.ptr<double>(2)[0]);
-		tmp.Normalize();
-		orientations_.push_back(tmp);
-	}	
-}
-
-// Approach 02: Random Generator
-void SegFSR::OrientationsGenerator02()
+void SegFSR::OrientationsGenerator()
 {
 	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     std::mt19937 generator (seed);
@@ -180,33 +95,47 @@ void SegFSR::OrientationsGenerator02()
 
 void SegFSR::Run()
 {	
-	// init
+	// Init
 	vector<int> outlier_idx;
+	clock_t start,end;
 	
 	// Generate Projection Orientations
-	cout<<"1"<<endl;
-	OrientationsGenerator02();
-	cout<<"2"<<endl;
-	ProjectionGenerator();
+	start=clock();
+	cout<<"[ 25%] Generate Orientation\t\t";
+	OrientationsGenerator();
+	end=clock();
+	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 	
-	// Outlier Removal
-	cout<<"3"<<endl;
-	#pragma omp parallel for
+	// Generate Projection Images
+	cout<<"[ 50%] Generate Projection Images\t";
+	start=clock();
+	ProjectionGenerator();
+	end=clock();
+	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	
+	// Detect Outlier
+	cout<<"[ 75%] Detect Outlier\t\t\t";
+	start=clock();
 	for(int i=0;i<n_;i++){
-		Graph gh;
-		gh.Establish(bufs_[i].img_);
-		gh.Run();
-		printf(" %d ",i);
-		for(int j=1;j<gh.rst_.size();j++){
-			for(int k=0;k<gh.rst_[j].number_;k++){
-				int tmp_i=gh.rst_[j].pLoc_[k].i_;
-				int tmp_j=gh.rst_[j].pLoc_[k].j_;
-				outlier_idx.insert(outlier_idx.end(),bufs_[i].dat_[tmp_i][tmp_j].dat_.begin(),bufs_[i].dat_[tmp_i][tmp_j].dat_.end());
+		FloodFill ff(bufs_[i].img_);
+		for(int j=1;j<ff.result_.size();j++){
+			Vertices* ant=&ff.result_[j];
+			Vertex* p=ant->head_->next;
+			while(p!=NULL){
+				int itmp=p->i_;
+				int jtmp=p->j_;
+				vector<int>& tmp=bufs_[i].dat_[itmp][jtmp].dat_;
+				outlier_idx.insert(outlier_idx.end(),tmp.begin(),tmp.end());
+				p=p->next;
 			}
 		}
 	}	
+	end=clock();
+	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 	
-	cout<<"4"<<endl;
+	// Outlier Removal
+	cout<<"[100%] Finish!\t\t\t\t";
+	start=clock();
 	sort(outlier_idx.begin(),outlier_idx.end());
 	vector<int>::iterator it=unique(outlier_idx.begin(),outlier_idx.end());
 	outlier_idx.erase(it,outlier_idx.end());
@@ -225,6 +154,9 @@ void SegFSR::Run()
 		cloud_->points[outlier_idx[i]].b=0;
 	}
 	pcl::io::savePLYFileASCII("1.ply",*cloud_);
+	
+	end=clock();
+	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 }
 
 
@@ -252,22 +184,5 @@ void SegFSR::Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer)
 {
 	viewer->setBackgroundColor(1.0, 1.0, 1.0);	
 	pcl::visualization::PointCloudColorHandlerRGBField<PointType> multi_color(cloud_); 	
-	viewer->addPointCloud<PointType> (cloud_, multi_color, "1");  
-	
-/* 	// add arrow
-	viewer.addArrow<PointType>(p_upright_, p_centre_, 1.0f, 0, 0, false, "X");
-	viewer.addArrow<PointType>(p_forward_, p_centre_, 0.0f, 1.0f, 0, false, "Y");
-	viewer.addArrow<PointType>(p_left_, p_centre_, 0.0f, 0.0f, 1.0f, false, "Z");
-	
-	
-	for(int i=0;i< orientations_.size();i++)
-	{
-		string tmp="orientation"+std::to_string(i);
-		PointType p_tmp;
-		p_tmp.x=orientations_[i].x+p_centre_.x;
-		p_tmp.y=orientations_[i].y+p_centre_.y;
-		p_tmp.z=orientations_[i].z+p_centre_.z;
-		viewer.addArrow<PointType>(p_tmp, p_centre_, 1.0f, 1.0f, 0.0f, false, tmp);
-	} */
-	
+	viewer->addPointCloud<PointType> (cloud_, multi_color, "1"); 
 }
