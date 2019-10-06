@@ -1,11 +1,12 @@
 #include "SegFSR.h"
-#define IMG_WIDTH 400
+#define IMG_WIDTH 15
 void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 {
 	// Generate Picture
 	PointType min,max;
     pcl::getMinMax3D(*cloud,min,max);
-	float border_width=(max.x-min.x)*0.01;
+	//float border_width=(max.x-min.x)*0.01;
+	float border_width=0.00001;
 	min.x=min.x-border_width;
 	max.x=max.x+border_width;
 	min.y=min.y-border_width;
@@ -57,23 +58,6 @@ void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud, int n)
 	bufs_.resize(n);
 }
 
-void SegFSR::UprightEstimation()
-{
-	BoundingBox bb(cloud_);
-	
-	p_upright_=bb.pcZ_;
-	p_forward_=bb.pcX_;
-	p_left_=bb.pcY_;
-	p_centre_=bb.cp_;
-	
-	v_upright_=V3(p_upright_.x-p_centre_.x,p_upright_.y-p_centre_.y,p_upright_.z-p_centre_.z);
-	v_forward_=V3(p_forward_.x-p_centre_.x,p_forward_.y-p_centre_.y, p_forward_.z-p_centre_.z);
-	v_left_=V3(p_left_.x-p_centre_.x,p_left_.y-p_centre_.y,p_left_.z-p_centre_.z);
-	
-	v_upright_=v_upright_/v_upright_.GetLength();
-	v_forward_=v_forward_/v_forward_.GetLength();
-	v_left_=v_left_/v_left_.GetLength();
-}
 
 void SegFSR::OrientationsGenerator()
 {
@@ -91,7 +75,70 @@ void SegFSR::OrientationsGenerator()
     }	
 }
 
+void SegFSR::ProjectionGenerator()
+{	
+	for(int i=0;i<n_;i++)
+	{
+		clock_t start,end;
+		start=clock();
+		pcl::PointCloud<PointType>::Ptr tf_cloud (new pcl::PointCloud<PointType> ());	
+		// define affine
+		float alpha=orientations_[i].GetArcToPlane(Z_AXIS,YOZ);
+		float beta=orientations_[i].GetArcToPlane(X_AXIS,XOZ);
+		
+		Eigen::Affine3f tf = Eigen::Affine3f::Identity();
+		tf.translation()<<0,0,0;
+		tf.rotate(Eigen::AngleAxisf(alpha, Eigen::Vector3f::UnitZ()));
+		tf.rotate(Eigen::AngleAxisf(beta, Eigen::Vector3f::UnitX()));
+		end=clock();
+		//cout<<endl<<"[ *1* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+		
+		start=clock();
+		pcl::transformPointCloud(*cloud_, *tf_cloud, tf);	
+		end=clock();
+		//cout<<"[ *2* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+		
+		start=clock();
+		bufs_[i].Init(tf_cloud,Z_AXIS);
+		end=clock();
+		//cout<<"[ *3* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	}
+}
 
+
+/* void SegFSR::ProjectionGenerator()
+{	
+	Eigen::Vector4f centroid;    
+    pcl::compute3DCentroid(*cloud_, centroid);
+	for(int i=0;i<n_;i++)
+	{
+		clock_t start,end;
+		pcl::PointCloud<PointType>::Ptr cloud_tf (new pcl::PointCloud<PointType> ());	
+		// point set project		
+		start=clock();
+		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+		coefficients->values.resize(4);
+		coefficients->values[0] = orientations_[i].x;
+		coefficients->values[1] = orientations_[i].y;
+		coefficients->values[2] = orientations_[i].z;
+		coefficients->values[3] = -(orientations_[i].x*centroid[0]+orientations_[i].y*centroid[1]+orientations_[i].z*centroid[2]);
+		
+		pcl::ProjectInliers<PointType> proj;
+		proj.setModelType(pcl::SACMODEL_PLANE);
+		proj.setInputCloud(cloud_);
+		proj.setModelCoefficients(coefficients);
+		proj.filter(*cloud_tf);
+		
+		end=clock();
+		cout<<"[ *1* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+		
+		// Generate Image
+		start=clock();
+		bufs_[i].Init(cloud_tf,Z_AXIS);
+		end=clock();
+		cout<<"[ *2* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl<<endl;;
+	}
+} */
 
 void SegFSR::Run()
 {	
@@ -105,6 +152,11 @@ void SegFSR::Run()
 	OrientationsGenerator();
 	end=clock();
 	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	
+	for(int i=0;i<orientations_.size();i++){
+		printf("%f %f %f\n",orientations_[i].x,orientations_[i].y,orientations_[i].z);
+	}
+		
 	
 	// Generate Projection Images
 	cout<<"[ 50%] Generate Projection Images\t";
@@ -140,43 +192,20 @@ void SegFSR::Run()
 	vector<int>::iterator it=unique(outlier_idx.begin(),outlier_idx.end());
 	outlier_idx.erase(it,outlier_idx.end());
 	
-	for(int i=0;i<cloud_->points.size();i++)
-	{
-		cloud_->points[i].r=0;
-		cloud_->points[i].g=255;
-		cloud_->points[i].b=0;
-	}
-	
 	for(int i=0;i<outlier_idx.size();i++)
 	{
 		cloud_->points[outlier_idx[i]].r=255;
 		cloud_->points[outlier_idx[i]].g=0;
 		cloud_->points[outlier_idx[i]].b=0;
 	}
-	pcl::io::savePLYFileASCII("1.ply",*cloud_);
-	
 	end=clock();
 	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	
+	pcl::io::savePLYFileASCII("1.ply",*cloud_);
 }
 
 
-void SegFSR::ProjectionGenerator()
-{	
-	for(int i=0;i<n_;i++)
-	{
-		pcl::PointCloud<PointType>::Ptr tf_cloud (new pcl::PointCloud<PointType> ());	
-		// define affine
-		float alpha=orientations_[i].GetArcToPlane(Z_AXIS,YOZ);
-		float beta=orientations_[i].GetArcToPlane(X_AXIS,XOZ);
-		
-		Eigen::Affine3f tf = Eigen::Affine3f::Identity();
-		tf.translation()<<0,0,0;
-		tf.rotate(Eigen::AngleAxisf(alpha, Eigen::Vector3f::UnitZ()));
-		tf.rotate(Eigen::AngleAxisf(beta, Eigen::Vector3f::UnitX()));	
-		pcl::transformPointCloud (*cloud_, *tf_cloud, tf);	
-		bufs_[i].Init(tf_cloud,Z_AXIS);
-	}
-}
+
  
 
 

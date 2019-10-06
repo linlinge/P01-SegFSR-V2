@@ -5,6 +5,9 @@
 #include <Eigen/Core>
 #include <pcl/common/transforms.h>
 #include <pcl/common/common.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/filters/project_inliers.h>
+#include <pcl/common/centroid.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <math.h>
 #include <opencv2/opencv.hpp>
@@ -18,6 +21,7 @@
 #include<cmath>
 #include<chrono>
 #include "FloodFill.h"
+
 using namespace std;
 /*
 	Image Segmentation based 2D-3D Fusion for 3D Object Filtering, Segmentation and Recognition
@@ -55,7 +59,6 @@ class SegFSR
 		int n_;
 		PointType p_upright_,p_forward_,p_left_,p_centre_;
 		V3 v_upright_,v_forward_,v_left_;
-		// boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer_;
 		double mean_dist;
 		vector<ZBuffer> bufs_;  // n*1
 		
@@ -65,9 +68,6 @@ class SegFSR
 		void ProjectionGenerator();
 		void Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);
 		void Run();
-
-		// inner function
-		void UprightEstimation();
 };
 
 

@@ -25,7 +25,7 @@ include_directories(.)
 add_subdirectory(glib)
 aux_source_directory(. MAIN_SRC)
 # add_executable (SegFSR ${MAIN_SRC})
-add_executable (SegFSR main.cpp BoundingBox.cpp zBuffer.cpp SegFSR.cpp FloodFill.cpp)
+add_executable (SegFSR main.cpp BoundingBox.cpp SegFSR.cpp FloodFill.cpp)
 
 # link library
 target_link_libraries (SegFSR ${PCL_LIBRARIES})

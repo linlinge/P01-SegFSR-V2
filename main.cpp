@@ -8,28 +8,22 @@ using namespace std;
 
 int main(int argc, char **argv)
 {	
-	
-	/* cv::Mat img=cv::imread(argv[1],0);	
-	FloodFill ff(img); */
-	
 	pcl::PointCloud<PointType>::Ptr cloud(new pcl::PointCloud<PointType>);	
 	if (pcl::io::loadPLYFile<PointType>(argv[1], *cloud) == -1){
 		PCL_ERROR("Couldn't read file test_pcd.pcd \n");
 		return (-1);
 	}
 	
-	SegFSR alg;
-	alg.Init(cloud,40);
-	alg.Run();
-	
-	/*
-	for(int i=0;i<ff.result_.size();i++)
+	for(int i=0;i<cloud->points.size();i++)
 	{
-		cout<<ff.result_[i].number_<<" ";
+		cloud->points[i].r=0;
+		cloud->points[i].g=255;
+		cloud->points[i].b=0;
 	}
-	cout<<endl; 
-	*/
 	
+	SegFSR alg;
+	alg.Init(cloud,20);
+	alg.Run();
 	
 	return 0;
 } 

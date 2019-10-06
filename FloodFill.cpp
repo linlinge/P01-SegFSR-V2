@@ -22,10 +22,6 @@ void FloodFill::floodFillUtil(cv::Mat& screen, int x, int y, Vertices& ant)
 
 FloodFill::FloodFill(cv::Mat& img) 
 { 
-	//clock_t start,end;
-	// Get all vertices
-	//start=clock();
-	
 	for(int i=0;i<img.rows;i++){
 		//#pragma omp parallel shared(active_vertices_)
 		for(int j=0;j<img.cols;j++){
@@ -36,22 +32,14 @@ FloodFill::FloodFill(cv::Mat& img)
 
 		
 	// Find all result
-	//start=clock();	
 	while(active_vertices_.number_!=0){
-		/* #pragma omp parallel shared(active_vertices_)
-		{ */
 			Vertices ant;
 			int x=active_vertices_.head_->next->i_;
 			int y=active_vertices_.head_->next->j_;
 			floodFillUtil(img,x,y ,ant);
 			result_.push_back(ant);
-		/* } */
 	}
-	//end=clock();
-	//cout << "The run time is: " <<(double)(end - start) / CLOCKS_PER_SEC << "s" << endl;
+
 	// collate result
 	sort(result_.begin(),result_.end(),[](Vertices& e1, Vertices& e2){return e1.number_>e2.number_;});	
-	
-	//end=clock();
-	//cout << "The run time is: " <<(double)(end - start) / CLOCKS_PER_SEC << "s" << endl;
 } 
