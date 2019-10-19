@@ -1,5 +1,6 @@
 #include "SegFSR.h"
-#define IMG_WIDTH 50
+#define IMG_WIDTH 600
+#define ELAPSED(START,END)  (((END.tv_sec  - START.tv_sec) * 1000000u + END.tv_usec - START.tv_usec) / 1.e6)
 void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 {
 	// Generate Picture
@@ -58,7 +59,14 @@ void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud, int n)
 	bufs_.resize(n);
 }
 
+void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud)
+{
+	cloud_=cloud;
+	for(int i=0;i<cloud->points.size();i++)
+		obj_idx_.push_back(i);
+}
 
+/* 
 void SegFSR::OrientationsGenerator()
 {
 	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -72,16 +80,31 @@ void SegFSR::OrientationsGenerator()
         orientations_[i].x = sin(phi) * cos(theta);
         orientations_[i].y = sin(phi) * sin(theta);
         orientations_[i].z = cos(phi);
-    }	
+    }
+} */
+
+void SegFSR::OrientationsGenerator()
+{
+	orientations_.clear();
+	for(float theta=0;theta<2*CV_PI;theta+=CV_PI/9.0){
+		for(float phi=0;phi<CV_PI;phi+=CV_PI/9.0){
+			V3 tmp;
+			tmp.x=sin(phi)*cos(theta);
+			tmp.y=sin(phi)*sin(theta);
+			tmp.z=cos(phi);
+			orientations_.push_back(tmp);			
+		}
+	}
+	bufs_.resize(orientations_.size());
 }
 
 void SegFSR::ProjectionGenerator()
 {	
-	for(int i=0;i<n_;i++)
-	{
-		clock_t start,end;
-		start=clock();
-		pcl::PointCloud<PointType>::Ptr tf_cloud (new pcl::PointCloud<PointType> ());	
+	#pragma omp parallel for
+	for(int i=0;i<orientations_.size();i++){
+		/* clock_t start,end;
+		start=clock(); */
+		pcl::PointCloud<PointType>::Ptr cloud_tf (new pcl::PointCloud<PointType>());
 		// define affine
 		float alpha=orientations_[i].GetArcToPlane(Z_AXIS,YOZ);
 		float beta=orientations_[i].GetArcToPlane(X_AXIS,XOZ);
@@ -90,123 +113,101 @@ void SegFSR::ProjectionGenerator()
 		tf.translation()<<0,0,0;
 		tf.rotate(Eigen::AngleAxisf(alpha, Eigen::Vector3f::UnitZ()));
 		tf.rotate(Eigen::AngleAxisf(beta, Eigen::Vector3f::UnitX()));
-		end=clock();
+		//end=clock();
 		//cout<<endl<<"[ *1* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 		
-		start=clock();
-		pcl::transformPointCloud(*cloud_, *tf_cloud, tf);	
-		end=clock();
+		//start=clock();
+		pcl::transformPointCloud(*cloud_, *cloud_tf, tf);
+		//TransformPointCloud(cloud_,cloud_tf,tf);
+		//end=clock();
 		//cout<<"[ *2* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 		
-		start=clock();
-		bufs_[i].Init(tf_cloud,Z_AXIS);
-		end=clock();
+		//start=clock();
+		bufs_[i].Init(cloud_tf,Z_AXIS);
+		//end=clock();
 		//cout<<"[ *3* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 	}
 }
 
-
-/* void SegFSR::ProjectionGenerator()
-{	
-	Eigen::Vector4f centroid;    
-    pcl::compute3DCentroid(*cloud_, centroid);
-	for(int i=0;i<n_;i++)
-	{
-		clock_t start,end;
-		pcl::PointCloud<PointType>::Ptr cloud_tf (new pcl::PointCloud<PointType> ());	
-		// point set project		
-		start=clock();
-		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
-		coefficients->values.resize(4);
-		coefficients->values[0] = orientations_[i].x;
-		coefficients->values[1] = orientations_[i].y;
-		coefficients->values[2] = orientations_[i].z;
-		coefficients->values[3] = -(orientations_[i].x*centroid[0]+orientations_[i].y*centroid[1]+orientations_[i].z*centroid[2]);
-		
-		pcl::ProjectInliers<PointType> proj;
-		proj.setModelType(pcl::SACMODEL_PLANE);
-		proj.setInputCloud(cloud_);
-		proj.setModelCoefficients(coefficients);
-		proj.filter(*cloud_tf);
-		
-		end=clock();
-		cout<<"[ *1* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
-		
-		// Generate Image
-		start=clock();
-		bufs_[i].Init(cloud_tf,Z_AXIS);
-		end=clock();
-		cout<<"[ *2* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl<<endl;;
-	}
-} */
-
 void SegFSR::Run()
 {	
 	// Init
-	vector<int> outlier_idx;
-	clock_t start,end;
+	struct timeval start, end;
 	
 	// Generate Projection Orientations
-	start=clock();
+	gettimeofday(&start, NULL);
 	cout<<"[ 25%] Generate Orientation\t\t";
 	OrientationsGenerator();
-	end=clock();
-	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	gettimeofday(&end, NULL);
+	cout<<ELAPSED(start,end)<<" (s)"<<endl;
 	
-	for(int i=0;i<orientations_.size();i++){
+	/* for(int i=0;i<orientations_.size();i++){
 		printf("%f %f %f\n",orientations_[i].x,orientations_[i].y,orientations_[i].z);
-	}
+	} */
 		
 	
 	// Generate Projection Images
 	cout<<"[ 50%] Generate Projection Images\t";
-	start=clock();
+	gettimeofday(&start, NULL);
 	ProjectionGenerator();
-	end=clock();
-	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	gettimeofday(&end, NULL);
+	cout<<ELAPSED(start,end)<<" (s)"<<endl;
 	
 	// Detect Outlier
 	cout<<"[ 75%] Detect Outlier\t\t\t";
-	start=clock();
-	for(int i=0;i<n_;i++){
+	gettimeofday(&start, NULL);
+	for(int i=0;i<orientations_.size();i++){
 		FloodFill ff(bufs_[i].img_);
 		for(int j=1;j<ff.result_.size();j++){
-			Vertices* ant=&ff.result_[j];
+			Vertices* ant=&ff.result_[j];			
 			Vertex* p=ant->head_->next;
 			while(p!=NULL){
 				int itmp=p->i_;
 				int jtmp=p->j_;
 				vector<int>& tmp=bufs_[i].dat_[itmp][jtmp].dat_;
-				outlier_idx.insert(outlier_idx.end(),tmp.begin(),tmp.end());
+				outlier_idx_.insert(outlier_idx_.end(),tmp.begin(),tmp.end());
 				p=p->next;
 			}
 		}
 	}	
-	end=clock();
-	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+	gettimeofday(&end, NULL);
+	cout<<ELAPSED(start,end)<<" (s)"<<endl;
 	
-	// Outlier Removal
-	cout<<"[100%] Finish!\t\t\t\t";
-	start=clock();
-	sort(outlier_idx.begin(),outlier_idx.end());
-	vector<int>::iterator it=unique(outlier_idx.begin(),outlier_idx.end());
-	outlier_idx.erase(it,outlier_idx.end());
+	// Outlier Removal 
+	cout<<"[100%] Finish!\t\t\t\t";	
+	gettimeofday(&start, NULL);
+	sort(outlier_idx_.begin(),outlier_idx_.end());
+	vector<int>::iterator it=unique(outlier_idx_.begin(),outlier_idx_.end());
+	outlier_idx_.erase(it,outlier_idx_.end());
 	
-	for(int i=0;i<outlier_idx.size();i++)
+	
+	// cloud_filtered 
+	cloud_filtered_=pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>);
+	
+
+	//int 
+	//#pragma omp parallel for
+	int k=0;
+	int current_idx=outlier_idx_[k];
+	for(int i=0;i<cloud_->points.size();i++)
 	{
-		cloud_->points[outlier_idx[i]].r=255;
-		cloud_->points[outlier_idx[i]].g=0;
-		cloud_->points[outlier_idx[i]].b=0;
+		if(i!=current_idx){
+			cloud_filtered_->points.push_back(cloud_->points[i]);
+		}
+		else{
+			current_idx=outlier_idx_[++k];
+		}
 	}
-	end=clock();
-	cout<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 	
-	pcl::io::savePLYFileASCII("1.ply",*cloud_);
+	
+	// output
+	gettimeofday(&end, NULL);
+	cout<<ELAPSED(start,end)<<" (s)"<<endl;	
+	cout<<"cloud size:"<<cloud_->points.size()<<endl;
+	cout<<"cloud_filtered size:"<<cloud_filtered_->points.size()<<endl;
+	pcl::io::savePLYFileASCII("cloud_filtered.ply",*cloud_filtered_);
 }
 
-
-
- 
 
 
 void SegFSR::Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer)

@@ -21,6 +21,7 @@
 #include<cmath>
 #include<chrono>
 #include "FloodFill.h"
+#include <list>
 
 using namespace std;
 /*
@@ -52,9 +53,11 @@ class ZBuffer
 class SegFSR
 {
 	public:
+		vector<int> outlier_idx_;
+		list<int> obj_idx_;
 		vector<V3> orientations_;
-		vector<int> outliers_idx_;  	// store the indices for outliers
 		pcl::PointCloud<PointType>::Ptr cloud_;
+		pcl::PointCloud<PointType>::Ptr cloud_filtered_;
 		float delta_arc_;
 		int n_;
 		PointType p_upright_,p_forward_,p_left_,p_centre_;
@@ -63,7 +66,8 @@ class SegFSR
 		vector<ZBuffer> bufs_;  // n*1
 		
 		
-		void Init(pcl::PointCloud<PointType>::Ptr cloud, int n);  // initial		
+		void Init(pcl::PointCloud<PointType>::Ptr cloud, int n);  // initial
+		void Init(pcl::PointCloud<PointType>::Ptr cloud);
 		void OrientationsGenerator();
 		void ProjectionGenerator();
 		void Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer);

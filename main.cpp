@@ -14,18 +14,16 @@ int main(int argc, char **argv)
 		return (-1);
 	}
 	
-	for(int i=0;i<cloud->points.size();i++)
+	/* for(int i=0;i<cloud->points.size();i++)
 	{
 		cloud->points[i].r=0;
 		cloud->points[i].g=255;
 		cloud->points[i].b=0;
-	}
+	} */
 	
 	SegFSR alg;
-	alg.Init(cloud,500);
+	alg.Init(cloud);
 	alg.Run();
 	
 	return 0;
-} 
-
-
+}
