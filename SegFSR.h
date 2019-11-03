@@ -22,6 +22,7 @@
 #include<chrono>
 #include "FloodFill.h"
 #include <list>
+#define ELAPSED(START,END)  (((END.tv_sec  - START.tv_sec) * 1000000u + END.tv_usec - START.tv_usec) / 1.e6)
 
 using namespace std;
 /*
@@ -43,7 +44,8 @@ class ZBuffer
 		int rows_,cols_;
 		vector<vector<ZElement>>  dat_; //
 		cv::Mat img_;		
-		void Init(pcl::PointCloud<PointType>::Ptr cloud,int axis);
+		void Init(pcl::PointCloud<PointType>::Ptr cloud, int axis);
+		//void Init(pcl::PointCloud<PointType>::Ptr cloud, int axis, double gap);
 		void Clear(){
 			rows_=0;
 			cols_=0;			
@@ -58,15 +60,9 @@ class SegFSR
 		vector<V3> orientations_;
 		pcl::PointCloud<PointType>::Ptr cloud_;
 		pcl::PointCloud<PointType>::Ptr cloud_filtered_;
-		float delta_arc_;
-		int n_;
-		PointType p_upright_,p_forward_,p_left_,p_centre_;
-		V3 v_upright_,v_forward_,v_left_;
-		double mean_dist;
 		vector<ZBuffer> bufs_;  // n*1
 		
 		
-		void Init(pcl::PointCloud<PointType>::Ptr cloud, int n);  // initial
 		void Init(pcl::PointCloud<PointType>::Ptr cloud);
 		void OrientationsGenerator();
 		void ProjectionGenerator();

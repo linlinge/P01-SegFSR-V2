@@ -1,21 +1,21 @@
 #include "SegFSR.h"
-#define IMG_WIDTH 600
-#define ELAPSED(START,END)  (((END.tv_sec  - START.tv_sec) * 1000000u + END.tv_usec - START.tv_usec) / 1.e6)
-void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
+void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud, int axis)
 {
-	// Generate Picture
-	PointType min,max;
-    pcl::getMinMax3D(*cloud,min,max);
 	//float border_width=(max.x-min.x)*0.01;
-	float border_width=0.00001;
+	/* double border_width=0.00001;
 	min.x=min.x-border_width;
 	max.x=max.x+border_width;
 	min.y=min.y-border_width;
-	max.y=max.y+border_width;
+	max.y=max.y+border_width; */
 	
 	// calculate rows and cols
-	cols_=IMG_WIDTH;
-	rows_=floor((max.y-min.y)/(max.x-min.x)*IMG_WIDTH)+1;
+	PointType min,max;
+	pcl::getMinMax3D(*cloud,min,max);
+	double V=(max.x-min.x)*(max.y-min.y)*(max.z-min.z);
+	double gap=0.4*pow(V/cloud->points.size(),1/3.0);
+	
+	cols_=floor((max.x-min.x)/gap)+1;
+	rows_=floor((max.y-min.y)/(max.x-min.x)*cols_)+1;
 	
 	// Initialize ZBuffer
 	vector<ZElement> tmp;
@@ -23,8 +23,8 @@ void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 	for(int i=0;i<rows_;i++)
 		dat_.push_back(tmp);
 	
-
 	
+	//img_.create(rows_,cols_, CV_32SC1);
 	img_.create(rows_,cols_, CV_8UC1);
 	for(int i=0;i<rows_;i++){
 		for(int j=0;j<cols_;j++){
@@ -32,13 +32,17 @@ void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 		}
 	}
 	
-	float delta_x=(max.x-min.x)/cols_;
-	float delta_y=(max.y-min.y)/rows_;	
+	double delta_x=(max.x-min.x)/cols_;
+	double delta_y=(max.y-min.y)/rows_;	
 	
 	for(int k=0;k<cloud->points.size();k++){
 		
 		int j=floor((cloud->points[k].x-min.x)/delta_x);
 		int i=floor((cloud->points[k].y-min.y)/delta_y);
+		if(i==rows_)
+			i=rows_-1;
+		if(j==cols_)
+			j=cols_-1;
 		
 		// update index in buffer
 		dat_[i][j].dat_.push_back(k);
@@ -51,13 +55,6 @@ void ZBuffer::Init(pcl::PointCloud<PointType>::Ptr cloud,int axis)
 	}
 }
 
-void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud, int n)
-{
-	cloud_=cloud;
-	n_=n;
-	orientations_.resize(n);
-	bufs_.resize(n);
-}
 
 void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud)
 {
@@ -66,28 +63,15 @@ void SegFSR::Init(pcl::PointCloud<PointType>::Ptr cloud)
 		obj_idx_.push_back(i);
 }
 
-/* 
-void SegFSR::OrientationsGenerator()
-{
-	unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 generator (seed);
-    std::uniform_real_distribution<double> uniform01(0.0, 1.0);
-	
-	for (int i = 0; i < n_; i++) {
-        // incorrect way
-        double theta = 2 * M_PI * uniform01(generator);
-        double phi = acos(1 - 2 * uniform01(generator));
-        orientations_[i].x = sin(phi) * cos(theta);
-        orientations_[i].y = sin(phi) * sin(theta);
-        orientations_[i].z = cos(phi);
-    }
-} */
-
 void SegFSR::OrientationsGenerator()
 {
 	orientations_.clear();
-	for(float theta=0;theta<2*CV_PI;theta+=CV_PI/9.0){
-		for(float phi=0;phi<CV_PI;phi+=CV_PI/9.0){
+	float delta_phi=CV_PI/4.5;
+	float delta_theta=CV_PI/2.25;
+	
+	orientations_.push_back(V3(0,0,1));
+	for(float phi=delta_phi;phi<CV_PI;phi+=delta_phi){
+		for(float theta=delta_theta;theta<2*CV_PI;theta+=delta_theta){		
 			V3 tmp;
 			tmp.x=sin(phi)*cos(theta);
 			tmp.y=sin(phi)*sin(theta);
@@ -95,37 +79,51 @@ void SegFSR::OrientationsGenerator()
 			orientations_.push_back(tmp);			
 		}
 	}
+	orientations_.push_back(V3(0,0,-1));
+	
 	bufs_.resize(orientations_.size());
+	
+	/* 
+		cout<<orientations_.size()<<endl;
+		for(int i=0;i<orientations_.size();i++)
+		{
+			cout<<orientations_[i]<<endl;
+		} 
+	*/
+	
 }
 
 void SegFSR::ProjectionGenerator()
 {	
+	// (0,0,1) , no need to transform
+	bufs_[0].Init(cloud_, Z_AXIS);
+	bufs_[bufs_.size()-1].Init(cloud_, Z_AXIS);
+	cv::imwrite("0.bmp",bufs_[0].img_);
+	cv::imwrite(std::to_string(bufs_.size()-1)+".bmp",bufs_[bufs_.size()-1].img_);	
+	
 	#pragma omp parallel for
-	for(int i=0;i<orientations_.size();i++){
-		/* clock_t start,end;
-		start=clock(); */
-		pcl::PointCloud<PointType>::Ptr cloud_tf (new pcl::PointCloud<PointType>());
-		// define affine
-		float alpha=orientations_[i].GetArcToPlane(Z_AXIS,YOZ);
-		float beta=orientations_[i].GetArcToPlane(X_AXIS,XOZ);
-		
-		Eigen::Affine3f tf = Eigen::Affine3f::Identity();
+	for(int i=1;i<orientations_.size()-1;i++){		
+		pcl::PointCloud<PointType>::Ptr cloud_tf (new pcl::PointCloud<PointType>());		
+		//cout<<i<<endl;
+		// generate alpha
+		Eigen::Vector3f v1(orientations_[i].x,orientations_[i].y,orientations_[i].z);
+		float alpha=orientations_[i].GetArcToPlane(Z_AXIS,YOZ); // get angle
+		Eigen::Affine3f tf1 = Eigen::Affine3f::Identity();
+		tf1.translation()<<0,0,0;
+		tf1.rotate(Eigen::AngleAxisf(alpha, Eigen::Vector3f::UnitZ()));
+		Eigen::Vector3f v2=tf1*v1;
+		// generate beta
+		V3 tmp(v2(0),v2(1),v2(2));		
+		float beta=tmp.GetArcToPlane(X_AXIS,XOZ);		
+		// transformation
+		Eigen::Affine3f tf = Eigen::Affine3f::Identity();		
 		tf.translation()<<0,0,0;
 		tf.rotate(Eigen::AngleAxisf(alpha, Eigen::Vector3f::UnitZ()));
 		tf.rotate(Eigen::AngleAxisf(beta, Eigen::Vector3f::UnitX()));
-		//end=clock();
-		//cout<<endl<<"[ *1* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
 		
-		//start=clock();
 		pcl::transformPointCloud(*cloud_, *cloud_tf, tf);
-		//TransformPointCloud(cloud_,cloud_tf,tf);
-		//end=clock();
-		//cout<<"[ *2* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
-		
-		//start=clock();
-		bufs_[i].Init(cloud_tf,Z_AXIS);
-		//end=clock();
-		//cout<<"[ *3* ]"<<(float)(end-start)/CLOCKS_PER_SEC<<" (s)"<<endl;
+		bufs_[i].Init(cloud_tf, Z_AXIS);		
+		cv::imwrite(std::to_string(i)+".bmp",bufs_[i].img_);
 	}
 }
 
@@ -141,23 +139,22 @@ void SegFSR::Run()
 	gettimeofday(&end, NULL);
 	cout<<ELAPSED(start,end)<<" (s)"<<endl;
 	
-	/* for(int i=0;i<orientations_.size();i++){
-		printf("%f %f %f\n",orientations_[i].x,orientations_[i].y,orientations_[i].z);
-	} */
-		
 	
 	// Generate Projection Images
 	cout<<"[ 50%] Generate Projection Images\t";
 	gettimeofday(&start, NULL);
 	ProjectionGenerator();
 	gettimeofday(&end, NULL);
-	cout<<ELAPSED(start,end)<<" (s)"<<endl;
+	cout<<ELAPSED(start,end)<<" (s)"<<endl; 	
 	
 	// Detect Outlier
 	cout<<"[ 75%] Detect Outlier\t\t\t";
+	
 	gettimeofday(&start, NULL);
+	//#pragma omp parallel for
 	for(int i=0;i<orientations_.size();i++){
 		FloodFill ff(bufs_[i].img_);
+		
 		for(int j=1;j<ff.result_.size();j++){
 			Vertices* ant=&ff.result_[j];			
 			Vertex* p=ant->head_->next;
@@ -182,8 +179,7 @@ void SegFSR::Run()
 	
 	
 	// cloud_filtered 
-	cloud_filtered_=pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>);
-	
+	cloud_filtered_=pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>);	
 
 	//int 
 	//#pragma omp parallel for
@@ -197,8 +193,7 @@ void SegFSR::Run()
 		else{
 			current_idx=outlier_idx_[++k];
 		}
-	}
-	
+	}	
 	
 	// output
 	gettimeofday(&end, NULL);
@@ -207,7 +202,6 @@ void SegFSR::Run()
 	cout<<"cloud_filtered size:"<<cloud_filtered_->points.size()<<endl;
 	pcl::io::savePLYFileASCII("cloud_filtered.ply",*cloud_filtered_);
 }
-
 
 
 void SegFSR::Viewer(boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer)

@@ -4,7 +4,42 @@
 #include<cstdlib>
 #include<ctime>
 #include <stdio.h>
+#include "PCLExtend.h"
 using namespace std;
+vector<double> StatisticNearestDistance(pcl::PointCloud<PointType>::Ptr cloud)
+{
+	int n_points = 0;
+	int nres;
+	std::vector<int> indices(2);
+	std::vector<float> sqr_distances(2);
+	vector<double> rst;
+	pcl::search::KdTree<PointType> tree;
+	tree.setInputCloud(cloud);
+
+	for (size_t i = 0; i < cloud->size(); ++i)
+	{ 
+		if (!std::isfinite((*cloud)[i].x))
+		{
+			continue;
+		}
+		nres = tree.nearestKSearch(i, 2, indices, sqr_distances);
+		if (nres == 2)
+		{			
+			rst.push_back(sqr_distances[1]);
+			++n_points;
+		}
+	}	
+	
+	return rst;
+}
+double mean(vector<double>& dat)
+{
+	double sum=0;
+	#pragma omp parallel for reduction(+:sum)
+	for(int i=0;i<dat.size();i++) sum+=dat[i];
+	
+	return sum/(double)dat.size();
+}
 
 int main(int argc, char **argv)
 {	
@@ -14,16 +49,10 @@ int main(int argc, char **argv)
 		return (-1);
 	}
 	
-	/* for(int i=0;i<cloud->points.size();i++)
-	{
-		cloud->points[i].r=0;
-		cloud->points[i].g=255;
-		cloud->points[i].b=0;
-	} */
-	
-	SegFSR alg;
+ 	SegFSR alg;
 	alg.Init(cloud);
 	alg.Run();
+	
 	
 	return 0;
 }

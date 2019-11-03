@@ -35,7 +35,7 @@ FloodFill::FloodFill(cv::Mat& img)
 	while(active_vertices_.number_!=0){
 			Vertices ant;
 			int x=active_vertices_.head_->next->i_;
-			int y=active_vertices_.head_->next->j_;
+			int y=active_vertices_.head_->next->j_; 
 			floodFillUtil(img,x,y ,ant);
 			result_.push_back(ant);
 	}

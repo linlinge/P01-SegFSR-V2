@@ -56,7 +56,7 @@ double ComputeMaxDistance(const pcl::PointCloud<PointType>::ConstPtr cloud)
 	return rst;
 }
 
-vector<double> StatisticNearestDistance(const pcl::PointCloud<PointType>::ConstPtr cloud)
+vector<double> StatisticNearestDistance(pcl::PointCloud<PointType>::Ptr cloud)
 {
 	int n_points = 0;
 	int nres;

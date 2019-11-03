@@ -72,14 +72,14 @@ public:
 		return (*this);
 	}
 	
-	V3(pcl::PointXYZRGBA & dat)
+	V3(pcl::PointXYZRGB& dat)
 	{
 		x=dat.x;
 		y=dat.y;
 		z=dat.z;
 	}
 	
-	V3(pcl::PointXYZ & dat)
+	V3(pcl::PointXYZ& dat)
 	{
 		x=dat.x;
 		y=dat.y;
@@ -88,7 +88,7 @@ public:
 	
 	bool operator==(V3& dat)
 	{
-		return ((x == dat.x) && (y == dat.y) && (z == dat.z));
+		return ((x == dat.x) && (y == dat.y) && (z == dat.z)); 
 	}
 	bool operator!=(V3& dat)
 	{
@@ -103,6 +103,7 @@ public:
 	{
 		return sqrt(pow(x - dat.x, 2.0f) + pow(y - dat.y, 2.0f));
 	}
+	
 	friend float Distance(V3& dat1,V3& dat2)
 	{
 		return sqrt(pow(dat1.x - dat2.x, 2.0f) + pow(dat1.y - dat2.y, 2.0f) + pow(dat1.z - dat2.z, 2.0f));
@@ -329,5 +330,11 @@ public:
 			cv::Mat dat=(cv::Mat_<float>(3,1)<<x,y,z);
 			return dat;
 		}
-	}	
+	}
+	void Update(float datx,float daty,float datz)
+	{
+		x=datx;
+		y=daty;
+		z=datz;
+	}
 };

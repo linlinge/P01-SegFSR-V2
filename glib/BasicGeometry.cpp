@@ -89,6 +89,8 @@ V3 Plane::IsIntersect(Line& dat)
 	return V3(dat.Direction_.x * t + dat.Point_.x, dat.Direction_.y * t + dat.Point_.y, dat.Direction_.z * t + dat.Point_.z);
 }
 
+
+
 /*****************************************************************
  Angle
 ******************************************************************/
