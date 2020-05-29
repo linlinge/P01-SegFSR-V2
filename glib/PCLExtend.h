@@ -11,7 +11,7 @@
 #include <omp.h>
 #include <vector>
 #ifndef PointType
-#define PointType pcl::PointXYZRGB
+#define PointType pcl::PointXYZRGBNormal
 #endif
 using namespace std;
 double ComputeMeanDistance(const pcl::PointCloud<PointType>::ConstPtr cloud);

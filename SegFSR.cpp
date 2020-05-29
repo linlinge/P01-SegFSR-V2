@@ -98,8 +98,12 @@ void SegFSR::ProjectionGenerator()
 	// (0,0,1) , no need to transform
 	bufs_[0].Init(cloud_, Z_AXIS);
 	bufs_[bufs_.size()-1].Init(cloud_, Z_AXIS);
-	cv::imwrite("0.bmp",bufs_[0].img_);
-	cv::imwrite(std::to_string(bufs_.size()-1)+".bmp",bufs_[bufs_.size()-1].img_);	
+
+	/*
+		Record Image
+	*/
+	// cv::imwrite("0.bmp",bufs_[0].img_);
+	// cv::imwrite(std::to_string(bufs_.size()-1)+".bmp",bufs_[bufs_.size()-1].img_);	
 	
 	#pragma omp parallel for
 	for(int i=1;i<orientations_.size()-1;i++){		
@@ -123,7 +127,7 @@ void SegFSR::ProjectionGenerator()
 		
 		pcl::transformPointCloud(*cloud_, *cloud_tf, tf);
 		bufs_[i].Init(cloud_tf, Z_AXIS);		
-		cv::imwrite(std::to_string(i)+".bmp",bufs_[i].img_);
+		// cv::imwrite(std::to_string(i)+".bmp",bufs_[i].img_);
 	}
 }
 
@@ -199,8 +203,7 @@ void SegFSR::Run()
 	gettimeofday(&end, NULL);
 	cout<<ELAPSED(start,end)<<" (s)"<<endl;	
 	cout<<"cloud size:"<<cloud_->points.size()<<endl;
-	cout<<"cloud_filtered size:"<<cloud_filtered_->points.size()<<endl;
-	pcl::io::savePLYFileASCII("cloud_filtered.ply",*cloud_filtered_);
+	cout<<"cloud_filtered size:"<<cloud_filtered_->points.size()<<endl;	
 }
 
 

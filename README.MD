@@ -2,6 +2,11 @@
 This is the source code of segmentation based 2d-3d fusion for 3D Object filtering, segmentation and recognition.  This code is compiled under ubuntu 18.04 with cmake. Its segmentation algorithm is based on flood fill 
 [[1]](https://en.wikipedia.org/wiki/Flood_fill)[[2]](https://www.geeksforgeeks.org/flood-fill-algorithm-implement-fill-paint/).
 
+【**Suitable Scenarios**】 Point clouds with patch-like clustered outliers.  
+【&nbsp;&nbsp;&nbsp;&nbsp;**Pros and Cons**&nbsp;&nbsp;&nbsp;】
+* Cannot deal with inner outliers;  
+* Cannot deal with outleirs with are close to the main subject.
+
 ## Depenencies
 * OpenCV  
 * PCL

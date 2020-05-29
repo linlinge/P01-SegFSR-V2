@@ -52,7 +52,7 @@ int main(int argc, char **argv)
  	SegFSR alg;
 	alg.Init(cloud);
 	alg.Run();
-	
+	pcl::io::savePLYFileBinary(argv[2],*alg.cloud_filtered_);
 	
 	return 0;
 }

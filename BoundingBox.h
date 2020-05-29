@@ -9,10 +9,8 @@
 #include <math.h>
 #include "V3.hpp"
 #include <vector>
+#include "PCLExtend.h"
 using namespace std;
-#ifndef PointType
-#define PointType pcl::PointXYZRGBA
-#endif
 
 class BoundingBox
 {
