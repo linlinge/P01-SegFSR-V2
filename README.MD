@@ -5,7 +5,7 @@ This is the source code of segmentation based 2d-3d fusion for 3D Object filteri
 【**Suitable Scenarios**】 Point clouds with patch-like clustered outliers.  
 【&nbsp;&nbsp;&nbsp;&nbsp;**Pros and Cons**&nbsp;&nbsp;&nbsp;】
 * Cannot deal with inner outliers;  
-* Cannot deal with outleirs with are close to the main subject.
+* Cannot deal with outliers who are close to the main subject.
 
 ## Depenencies
 * OpenCV  
